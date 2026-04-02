@@ -1,0 +1,10 @@
+Ferramenta para encontrar value nas casas portuguesas
+
+Objetivo:
+- comparar odds PT com benchmark
+- encontrar oportunidades rápidas
+
+Mercados:
+- 1X2
+- Over/Under
+- BTTS
