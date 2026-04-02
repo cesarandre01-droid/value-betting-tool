@@ -201,5 +201,3 @@ def calcular(df):
             casa_top = melhor_row["Casa"]
 
             threshold = THRESHOLDS.get(casa_top, 0.05)
-
-            m
