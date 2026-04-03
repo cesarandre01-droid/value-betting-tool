@@ -1,82 +1,101 @@
 import streamlit as st
 import pandas as pd
 import re
+import requests
 
-st.title("⚡ Value Betting Finder")
+st.title("⚡ Value Betting Finder (Auto Benchmark)")
 
-input_text = st.text_area("Cole odds aqui:", height=250)
+API_KEY = "dd3f638fb38c7d3d8a500142243f5231"
 
+input_text = st.text_area("Cole odds PT aqui:", height=200)
+
+# -------- BUSCAR BENCHMARK REAL --------
+def get_benchmark():
+    url = f"https://api.the-odds-api.com/v4/sports/soccer_spain_segunda_division/odds/?apiKey={API_KEY}&regions=eu&markets=h2h"
+
+    response = requests.get(url)
+
+    if response.status_code != 200:
+        return {}
+
+    data = response.json()
+
+    benchmarks = {}
+
+    for game in data:
+        teams = game["teams"]
+        home = game["home_team"]
+
+        jogo = f"{teams[0]} vs {teams[1]}"
+
+        odds = []
+
+        for bookmaker in game["bookmakers"]:
+            for market in bookmaker["markets"]:
+                for outcome in market["outcomes"]:
+                    odds.append(outcome["price"])
+
+        if odds:
+            benchmarks[jogo] = max(odds)
+
+    return benchmarks
+
+# -------- PARSE PT --------
 def parse(texto):
     linhas = [l.strip() for l in texto.split("\n") if l.strip()]
     dados = []
 
-    casa = None
-
     for l in linhas:
-        if l in ["Betano", "Solverde", "Placard", "Bwin", "Betclic", "Benchmark"]:
-            casa = l
-            continue
-
         if "|" in l:
             partes = l.split("|")
-
             jogo = partes[0].strip()
-            tempo = partes[1].strip()
-            liga = partes[2].strip()
-            mercado = partes[3].strip()
-
-            odds = re.findall(r"\d+[.,]\d+", partes[4])
+            odds = re.findall(r"\d+[.,]\d+", partes[1])
             odds = [float(o.replace(",", ".")) for o in odds]
 
             for sel, odd in zip(["1", "X", "2"], odds):
                 dados.append({
                     "Jogo": jogo,
-                    "Hora": tempo,
-                    "Liga": liga,
-                    "Mercado": mercado,
                     "Selecao": sel,
-                    "Casa": casa,
                     "Odd": odd
                 })
 
     return pd.DataFrame(dados)
 
-def calcular(df):
+# -------- CALCULAR VALUE --------
+def calcular(df, benchmarks):
     resultados = []
 
-    grupos = df.groupby(["Jogo", "Selecao", "Mercado"])
+    for _, row in df.iterrows():
+        jogo = row["Jogo"]
+        sel = row["Selecao"]
+        odd = row["Odd"]
 
-    for (jogo, sel, mercado), g in grupos:
-
-        bench = g[g["Casa"] == "Benchmark"]
-        pt = g[g["Casa"] != "Benchmark"]
-
-        if bench.empty or pt.empty:
+        if jogo not in benchmarks:
             continue
 
-        odd_bench = max(bench["Odd"])
-        melhor = pt.loc[pt["Odd"].idxmax()]
+        odd_bench = benchmarks[jogo]
 
-        edge = (melhor["Odd"] / odd_bench - 1) * 100
+        edge = (odd / odd_bench - 1) * 100
 
         if edge >= 4:
             resultados.append({
                 "Jogo": jogo,
-                "Hora": melhor["Hora"],
-                "Mercado": mercado,
                 "Seleção": sel,
-                "Casa": melhor["Casa"],
-                "Odd": melhor["Odd"],
+                "Odd PT": odd,
+                "Benchmark": round(odd_bench, 2),
                 "Edge %": round(edge, 2)
             })
 
     return pd.DataFrame(resultados)
 
+# -------- UI --------
 if st.button("🔍 Procurar Value"):
     df = parse(input_text)
 
     if not df.empty:
-        res = calcular(df)
+        benchmarks = get_benchmark()
+
+        res = calcular(df, benchmarks)
 
         if not res.empty:
             st.success("Oportunidades encontradas")
