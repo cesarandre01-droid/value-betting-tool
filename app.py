@@ -9,7 +9,7 @@ API_KEY = "dd3f638fb38c7d3d8a500142243f5231"
 
 input_text = st.text_area("Cole odds PT aqui:", height=200)
 
-# -------- BUSCAR BENCHMARK REAL --------
+# -------- BENCHMARK REAL (ROBUSTO) --------
 def get_benchmark():
     url = f"https://api.the-odds-api.com/v4/sports/soccer_spain_segunda_division/odds/?apiKey={API_KEY}&regions=eu&markets=h2h"
 
@@ -19,21 +19,24 @@ def get_benchmark():
         return {}
 
     data = response.json()
-
     benchmarks = {}
 
     for game in data:
-        teams = game["teams"]
-        home = game["home_team"]
+
+        teams = game.get("teams", [])
+        if len(teams) < 2:
+            continue
 
         jogo = f"{teams[0]} vs {teams[1]}"
 
         odds = []
 
-        for bookmaker in game["bookmakers"]:
-            for market in bookmaker["markets"]:
-                for outcome in market["outcomes"]:
-                    odds.append(outcome["price"])
+        for bookmaker in game.get("bookmakers", []):
+            for market in bookmaker.get("markets", []):
+                for outcome in market.get("outcomes", []):
+                    price = outcome.get("price")
+                    if price:
+                        odds.append(price)
 
         if odds:
             benchmarks[jogo] = max(odds)
@@ -49,6 +52,7 @@ def parse(texto):
         if "|" in l:
             partes = l.split("|")
             jogo = partes[0].strip()
+
             odds = re.findall(r"\d+[.,]\d+", partes[1])
             odds = [float(o.replace(",", ".")) for o in odds]
 
