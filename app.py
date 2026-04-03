@@ -4,7 +4,7 @@ import re
 import requests
 import unicodedata
 
-st.title("⚡ Value Finder PT vs Market")
+st.title("⚡ Value Finder PT vs Market (Full Edge)")
 
 API_KEY = "dd3f638fb38c7d3d8a500142243f5231"
 
@@ -59,7 +59,7 @@ def get_benchmark():
 
     return benchmarks
 
-# -------- PARSE PT --------
+# -------- PARSE --------
 def parse(text):
     linhas = [l.strip() for l in text.split("\n") if l.strip()]
     dados = []
@@ -113,23 +113,30 @@ def calcular(df, benchmarks):
             continue
 
         melhor = g.loc[g["Odd"].idxmax()]
-
         edge = (melhor["Odd"] / odd_bench - 1) * 100
 
+        # classificação visual
         if edge >= 4:
-            resultados.append({
-                "Jogo": melhor["Jogo"],
-                "Seleção": sel,
-                "Casa": melhor["Casa"],
-                "Odd PT": melhor["Odd"],
-                "Benchmark": round(odd_bench, 2),
-                "Edge %": round(edge, 2)
-            })
+            status = "🟢 VALUE"
+        elif edge >= 2:
+            status = "🟡 QUASE"
+        else:
+            status = "🔴 NO VALUE"
+
+        resultados.append({
+            "Jogo": melhor["Jogo"],
+            "Seleção": sel,
+            "Casa": melhor["Casa"],
+            "Odd PT": melhor["Odd"],
+            "Benchmark": round(odd_bench, 2),
+            "Edge %": round(edge, 2),
+            "Status": status
+        })
 
     return pd.DataFrame(resultados)
 
 # -------- UI --------
-if st.button("🔍 Procurar Value"):
+if st.button("🔍 Analisar Odds"):
     df = parse(input_text)
 
     if not df.empty:
@@ -137,9 +144,8 @@ if st.button("🔍 Procurar Value"):
         res = calcular(df, benchmarks)
 
         if not res.empty:
-            st.success("🔥 Oportunidades encontradas")
-            st.dataframe(res)
+            st.dataframe(res.sort_values(by="Edge %", ascending=False))
         else:
-            st.warning("Sem value")
+            st.warning("Sem dados suficientes")
     else:
         st.error("Erro a ler dados")
