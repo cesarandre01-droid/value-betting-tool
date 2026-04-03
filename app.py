@@ -3,13 +3,13 @@ import pandas as pd
 import re
 import requests
 
-st.title("⚡ Value Betting Finder (Auto Benchmark)")
+st.title("⚡ Value Betting Finder (Correct Benchmark)")
 
 API_KEY = "dd3f638fb38c7d3d8a500142243f5231"
 
 input_text = st.text_area("Cole odds PT aqui:", height=200)
 
-# -------- BENCHMARK REAL (ROBUSTO) --------
+# -------- BENCHMARK POR SELEÇÃO --------
 def get_benchmark():
     url = f"https://api.the-odds-api.com/v4/sports/soccer_spain_segunda_division/odds/?apiKey={API_KEY}&regions=eu&markets=h2h"
 
@@ -29,17 +29,30 @@ def get_benchmark():
 
         jogo = f"{teams[0]} vs {teams[1]}"
 
-        odds = []
+        sel_odds = {"1": [], "X": [], "2": []}
 
         for bookmaker in game.get("bookmakers", []):
             for market in bookmaker.get("markets", []):
                 for outcome in market.get("outcomes", []):
-                    price = outcome.get("price")
-                    if price:
-                        odds.append(price)
 
-        if odds:
-            benchmarks[jogo] = max(odds)
+                    name = outcome.get("name")
+                    price = outcome.get("price")
+
+                    if not name or not price:
+                        continue
+
+                    if name == teams[0]:
+                        sel_odds["1"].append(price)
+                    elif name == teams[1]:
+                        sel_odds["2"].append(price)
+                    elif name.lower() in ["draw", "tie"]:
+                        sel_odds["X"].append(price)
+
+        benchmarks[jogo] = {
+            "1": max(sel_odds["1"]) if sel_odds["1"] else None,
+            "X": max(sel_odds["X"]) if sel_odds["X"] else None,
+            "2": max(sel_odds["2"]) if sel_odds["2"] else None
+        }
 
     return benchmarks
 
@@ -77,7 +90,10 @@ def calcular(df, benchmarks):
         if jogo not in benchmarks:
             continue
 
-        odd_bench = benchmarks[jogo]
+        odd_bench = benchmarks[jogo].get(sel)
+
+        if not odd_bench:
+            continue
 
         edge = (odd / odd_bench - 1) * 100
 
